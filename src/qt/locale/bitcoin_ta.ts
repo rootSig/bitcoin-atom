@@ -52,7 +52,7 @@
     </message>
     </context>
 <context>
-    <name>BitcoinGUI</name>
+    <name>Bitcoin Atom GUI</name>
     <message>
         <source>&amp;Overview</source>
         <translation>&amp;கண்ணோட்டம்</translation>
@@ -90,8 +90,8 @@
         <translation>&amp;செய்தியை சரிசெய்...</translation>
     </message>
     <message>
-        <source>Bitcoin</source>
-        <translation>Bitcoin</translation>
+        <source>Bitcoin Atom</source>
+        <translation>Bitcoin Atom</translation>
     </message>
     <message>
         <source>Wallet</source>
@@ -706,10 +706,10 @@
     <name>WalletView</name>
     </context>
 <context>
-    <name>bitcoin-core</name>
+    <name>Bitcoin Atom-core</name>
     <message>
-        <source>Bitcoin Core</source>
-        <translation>Bitcoin மையம்</translation>
+        <source>Bitcoin Atom Core</source>
+        <translation>Bitcoin Atom மையம்</translation>
     </message>
     <message>
         <source>(default: %u)</source>

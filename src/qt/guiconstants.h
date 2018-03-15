@@ -17,6 +17,7 @@ static const int STATUSBAR_ICONSIZE = 16;
 static const bool DEFAULT_SPLASHSCREEN = true;
 
 /* Invalid field background style */
+#define STYLE_VALID "background-color: rgba(170, 170, 186, 33); border-top: 2px inset rgba(0, 0, 0, 33); border-left: 2px inset rgba(0, 0, 0, 33); border-bottom: 2px solid rgba(170, 170, 186, 33); border-right: 2px solid rgba(170, 170, 186, 33); border-radius: 4px;"
 #define STYLE_INVALID "background:#FF8080"
 
 /* Transaction list -- unconfirmed transaction */
@@ -48,9 +49,16 @@ static const int MAX_URI_LENGTH = 255;
 /* Number of frames in spinner animation */
 #define SPINNER_FRAMES 36
 
+<<<<<<< HEAD
 #define QAPP_ORG_NAME "Bitcoin-Atom"
 #define QAPP_ORG_DOMAIN "bitcoinatom.io"
 #define QAPP_APP_NAME_DEFAULT "Bitcoin-Atom-Qt"
 #define QAPP_APP_NAME_TESTNET "Bitcoin-Atom-Qt-testnet"
+=======
+#define QAPP_ORG_NAME "Bitcoin"
+#define QAPP_ORG_DOMAIN "bitcoin.org"
+#define QAPP_APP_NAME_DEFAULT "Atom-Qt"
+#define QAPP_APP_NAME_TESTNET "Atom-Qt-testnet"
+>>>>>>> 307f64cab... fix - replace bitcoin-qt to atom-qt
 
 #endif // BITCOIN_QT_GUICONSTANTS_H

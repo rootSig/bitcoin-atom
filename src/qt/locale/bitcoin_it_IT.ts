@@ -88,7 +88,7 @@
     </message>
 </context>
 <context>
-    <name>BitcoinGUI</name>
+    <name>Bitcoin Atom GUI</name>
     <message>
         <source>&amp;Transactions</source>
         <translation>Transazioni</translation>
@@ -202,6 +202,6 @@
     <name>WalletView</name>
     </context>
 <context>
-    <name>bitcoin-core</name>
+    <name>Bitcoin Atom-core</name>
     </context>
 </TS>
