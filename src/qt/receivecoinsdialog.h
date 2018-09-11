@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Bitcoin Core developers
+// Copyright (c) 2011-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -17,6 +17,7 @@
 
 class PlatformStyle;
 class WalletModel;
+class StockInfo;
 
 namespace Ui {
     class ReceiveCoinsDialog;
@@ -43,7 +44,7 @@ public:
     ~ReceiveCoinsDialog();
 
     void setModel(WalletModel *model);
-
+    void addPriceWidget(StockInfo* stockInfo);
 public Q_SLOTS:
     void clear();
     void reject();

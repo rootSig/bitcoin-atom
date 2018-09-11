@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Bitcoin Core developers
+// Copyright (c) 2011-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -9,7 +9,6 @@
 #include <qt/qvalidatedlineedit.h>
 #include <qt/walletmodel.h>
 
-#include <fs.h>
 #include <primitives/transaction.h>
 #include <init.h>
 #include <policy/policy.h>
@@ -552,10 +551,13 @@ int TableViewLastColumnResizingFixer::getColumnsWidth()
     return nColumnsWidthSum;
 }
 
-int TableViewLastColumnResizingFixer::getAvailableWidthForColumn(int column)
+int TableViewLastColumnResizingFixer::getAvailableWidthForColumn(int column, int padding, bool useHeadersWidth)
 {
     int nResult = lastColumnMinimumWidth;
-    int nTableWidth = tableView->horizontalHeader()->width();
+    int nTableWidth = tableView->width() - padding;
+    if (useHeadersWidth) {
+        nTableWidth = tableView->horizontalHeader()->width();
+    }
 
     if (nTableWidth > 0)
     {
@@ -570,22 +572,22 @@ int TableViewLastColumnResizingFixer::getAvailableWidthForColumn(int column)
 void TableViewLastColumnResizingFixer::adjustTableColumnsWidth()
 {
     disconnectViewHeadersSignals();
-    resizeColumn(lastColumnIndex, getAvailableWidthForColumn(lastColumnIndex));
+    resizeColumn(lastColumnIndex, getAvailableWidthForColumn(lastColumnIndex, 0));
     connectViewHeadersSignals();
 
     int nTableWidth = tableView->horizontalHeader()->width();
     int nColsWidth = getColumnsWidth();
     if (nColsWidth > nTableWidth)
     {
-        resizeColumn(secondToLastColumnIndex,getAvailableWidthForColumn(secondToLastColumnIndex));
+        resizeColumn(secondToLastColumnIndex,getAvailableWidthForColumn(secondToLastColumnIndex, 0));
     }
 }
 
 // Make column use all the space available, useful during window resizing.
-void TableViewLastColumnResizingFixer::stretchColumnWidth(int column)
+void TableViewLastColumnResizingFixer::stretchColumnWidth(int column, int padding, bool useHeadersWidth)
 {
     disconnectViewHeadersSignals();
-    resizeColumn(column, getAvailableWidthForColumn(column));
+    resizeColumn(column, getAvailableWidthForColumn(column, padding, useHeadersWidth));
     connectViewHeadersSignals();
 }
 
@@ -593,7 +595,7 @@ void TableViewLastColumnResizingFixer::stretchColumnWidth(int column)
 void TableViewLastColumnResizingFixer::on_sectionResized(int logicalIndex, int oldSize, int newSize)
 {
     adjustTableColumnsWidth();
-    int remainingWidth = getAvailableWidthForColumn(logicalIndex);
+    int remainingWidth = getAvailableWidthForColumn(logicalIndex, 0);
     if (newSize > remainingWidth)
     {
        resizeColumn(logicalIndex, remainingWidth);
@@ -607,7 +609,7 @@ void TableViewLastColumnResizingFixer::on_geometriesChanged()
     if ((getColumnsWidth() - this->tableView->horizontalHeader()->width()) != 0)
     {
         disconnectViewHeadersSignals();
-        resizeColumn(secondToLastColumnIndex, getAvailableWidthForColumn(secondToLastColumnIndex));
+        resizeColumn(secondToLastColumnIndex, getAvailableWidthForColumn(secondToLastColumnIndex, 0));
         connectViewHeadersSignals();
     }
 }
@@ -1013,6 +1015,18 @@ QString formatBytes(uint64_t bytes)
         return QString(QObject::tr("%1 MB")).arg(bytes / 1024 / 1024);
 
     return QString(QObject::tr("%1 GB")).arg(bytes / 1024 / 1024 / 1024);
+}
+
+qreal calculateIdealFontSize(int width, const QString& text, QFont font, qreal minPointSize, qreal font_size) {
+    while(font_size >= minPointSize) {
+        font.setPointSizeF(font_size);
+        QFontMetrics fm(font);
+        if (fm.width(text) < width) {
+            break;
+        }
+        font_size -= 0.5;
+    }
+    return font_size;
 }
 
 void ClickableLabel::mouseReleaseEvent(QMouseEvent *event)

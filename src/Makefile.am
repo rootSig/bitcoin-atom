@@ -135,6 +135,7 @@ BITCOIN_CORE_H = \
   rpc/safemode.h \
   rpc/server.h \
   rpc/register.h \
+  rpc/util.h \
   scheduler.h \
   script/sigcache.h \
   script/sign.h \
@@ -220,6 +221,7 @@ libbitcoin_server_a_SOURCES = \
   rpc/rawtransaction.cpp \
   rpc/safemode.cpp \
   rpc/server.cpp \
+  rpc/swap.cpp \
   script/sigcache.cpp \
   script/ismine.cpp \
   timedata.cpp \
@@ -358,6 +360,7 @@ libbitcoin_util_a_SOURCES = \
   fs.cpp \
   random.cpp \
   rpc/protocol.cpp \
+  rpc/util.cpp \
   support/cleanse.cpp \
   sync.cpp \
   threadinterrupt.cpp \

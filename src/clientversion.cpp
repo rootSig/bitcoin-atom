@@ -1,4 +1,4 @@
-// Copyright (c) 2012-2016 The Bitcoin Core developers
+// Copyright (c) 2012-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -6,7 +6,6 @@
 
 #include <tinyformat.h>
 
-#include <string>
 
 /**
  * Name of client reported in the 'version' message. Report the same name
@@ -99,5 +98,13 @@ std::string FormatSubVersion(const std::string& name, int nClientVersion, const 
         ss << ")";
     }
     ss << "/";
+    return ss.str();
+}
+
+std::string FormatVersionString(const std::string& prefix, int nClientVersion)
+{
+    std::ostringstream ss;
+    ss << prefix;
+    ss << FormatVersion(nClientVersion);
     return ss.str();
 }

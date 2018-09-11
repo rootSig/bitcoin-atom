@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Bitcoin Core developers
+// Copyright (c) 2011-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -14,6 +14,8 @@
 #include <vector>
 
 #include <QObject>
+
+enum OutputType : int;
 
 class AddressTableModel;
 class OptionsModel;
@@ -155,7 +157,7 @@ public:
     };
 
     // prepare transaction for getting txfee before sending coins
-    SendCoinsReturn prepareTransaction(WalletModelTransaction &transaction, const CCoinControl& coinControl);
+    SendCoinsReturn prepareTransaction(WalletModelTransaction &transaction, const CCoinControl& coinControl, bool sign = true);
 
     // Send coins to a list of recipients
     SendCoinsReturn sendCoins(WalletModelTransaction &transaction);
@@ -215,9 +217,9 @@ public:
 
     bool hdEnabled() const;
 
-    int getDefaultConfirmTarget() const;
+    OutputType getDefaultAddressType() const;
 
-    bool getDefaultWalletRbf() const;
+    int getDefaultConfirmTarget() const;
 
     int getLastTransactions(TransactionRecord& tr1, TransactionRecord& tr2, TransactionRecord& tr3);
 private:

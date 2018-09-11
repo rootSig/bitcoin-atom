@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Bitcoin Core developers
+// Copyright (c) 2011-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -224,7 +224,7 @@ bool WalletModel::validateAddress(const QString &address)
     return IsValidDestinationString(address.toStdString());
 }
 
-WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransaction &transaction, const CCoinControl& coinControl)
+WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransaction &transaction, const CCoinControl& coinControl, bool sign)
 {
     CAmount total = 0;
     bool fSubtractFeeFromAmount = false;
@@ -309,7 +309,7 @@ WalletModel::SendCoinsReturn WalletModel::prepareTransaction(WalletModelTransact
 
         CWalletTx *newTx = transaction.getTransaction();
         CReserveKey *keyChange = transaction.getPossibleKeyChange();
-        bool fCreated = wallet->CreateTransaction(vecSend, *newTx, *keyChange, nFeeRequired, nChangePosRet, strFailReason, coinControl);
+        bool fCreated = wallet->CreateTransaction(vecSend, *newTx, *keyChange, nFeeRequired, nChangePosRet, strFailReason, coinControl, sign);
         transaction.setTransactionFee(nFeeRequired);
         if (fSubtractFeeFromAmount && fCreated)
             transaction.reassignAmounts(nChangePosRet);
@@ -771,12 +771,12 @@ bool WalletModel::hdEnabled() const
     return wallet->IsHDEnabled();
 }
 
+OutputType WalletModel::getDefaultAddressType() const
+{
+    return g_address_type;
+}
+
 int WalletModel::getDefaultConfirmTarget() const
 {
     return nTxConfirmTarget;
-}
-
-bool WalletModel::getDefaultWalletRbf() const
-{
-    return fWalletRbf;
 }

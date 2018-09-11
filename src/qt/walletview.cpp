@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Bitcoin Core developers
+// Copyright (c) 2011-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -19,6 +19,7 @@
 #include <qt/transactionview.h>
 #include <qt/walletmodel.h>
 #include <qt/mainmenupanel.h>
+#include <qt/stockinfo.h>
 
 #include <ui_interface.h>
 
@@ -89,6 +90,14 @@ WalletView::WalletView(const PlatformStyle *_platformStyle, QWidget *parent):
 
 WalletView::~WalletView()
 {
+}
+
+void WalletView::addPriceWidget(StockInfo* stockInfo)
+{
+    overviewPage->addPriceWidget(stockInfo);
+    transactionView->addPriceWidget(stockInfo);
+    receiveCoinsPage->addPriceWidget(stockInfo);
+    sendCoinsPage->addPriceWidget(stockInfo);
 }
 
 void WalletView::connectMainMenu(MainMenuPanel* _mainMenu)

@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Bitcoin Core developers
+// Copyright (c) 2011-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -10,7 +10,6 @@
 #include <qt/guiutil.h>
 #include <qt/optionsmodel.h>
 #include <qt/platformstyle.h>
-#include <qt/walletmodel.h>
 
 #include <QApplication>
 #include <QClipboard>
@@ -44,6 +43,7 @@ SendCoinsEntry::SendCoinsEntry(const PlatformStyle *_platformStyle, QWidget *par
 
     // Connect signals
     connect(ui->payAmount, SIGNAL(valueChanged()), this, SIGNAL(payAmountChanged()));
+    connect(ui->payTo, SIGNAL(textChanged(QString)), this, SIGNAL(addressChanged()));
     connect(ui->checkboxSubtractFeeFromAmount, SIGNAL(toggled(bool)), this, SIGNAL(subtractFeeFromAmountChanged()));
     //connect(ui->deleteButton, SIGNAL(clicked()), this, SLOT(deleteClicked()));
     //connect(ui->deleteButton_is, SIGNAL(clicked()), this, SLOT(deleteClicked()));

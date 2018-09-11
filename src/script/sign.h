@@ -1,5 +1,5 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
-// Copyright (c) 2009-2016 The Bitcoin Core developers
+// Copyright (c) 2009-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -42,6 +42,7 @@ public:
     TransactionSignatureCreator(const CKeyStore* keystoreIn, const CTransaction* txToIn, unsigned int nInIn, const CAmount& amountIn, int nHashTypeIn=SIGHASH_ALL|SIGHASH_FORKID);
     const BaseSignatureChecker& Checker() const override { return checker; }
     bool CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& keyid, const CScript& scriptCode, SigVersion sigversion) const override;
+    bool CreateSig(std::vector<unsigned char>& vchSig, const CKeyID& address, CPubKey& pubkey, const CScript& scriptCode, SigVersion sigversion) const;
 };
 
 class MutableTransactionSignatureCreator : public TransactionSignatureCreator {
@@ -80,5 +81,11 @@ SignatureData CombineSignatures(const CScript& scriptPubKey, const BaseSignature
 /** Extract signature data from a transaction, and insert it. */
 SignatureData DataFromTransaction(const CMutableTransaction& tx, unsigned int nIn);
 void UpdateTransaction(CMutableTransaction& tx, unsigned int nIn, const SignatureData& data);
+
+/* Check whether we know how to sign for an output like this, assuming we
+ * have all private keys. While this function does not need private keys, the passed
+ * keystore is used to look up public keys and redeemscripts by hash.
+ * Solvability is unrelated to whether we consider this output to be ours. */
+bool IsSolvable(const CKeyStore& store, const CScript& script);
 
 #endif // BITCOIN_SCRIPT_SIGN_H

@@ -1,5 +1,5 @@
 // Copyright (c) 2010 Satoshi Nakamoto
-// Copyright (c) 2009-2016 The Bitcoin Core developers
+// Copyright (c) 2009-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -25,6 +25,7 @@
 #include <util.h>
 #include <utilstrencodings.h>
 #include <hash.h>
+#include <validationinterface.h>
 #include <warnings.h>
 #include <miner.h>
 
@@ -49,14 +50,14 @@ static CUpdatedBlock latestblock;
 
 extern void TxToJSON(const CTransaction& tx, const uint256 hashBlock, UniValue& entry);
 
-double GetDifficulty(const CBlockIndex* blockindex, bool fPowOnly)
+double GetDifficulty(const CChain& chain, const CBlockIndex* blockindex, bool fPowOnly)
 {
     if (blockindex == nullptr)
     {
-        if (chainActive.Tip() == nullptr || !fPowOnly)
+        if (chain.Tip() == nullptr || !fPowOnly)
             return 1.0;
         else
-            blockindex = chainActive.Tip();        
+            blockindex = chain.Tip();
     }
 
     if (fPowOnly) {
@@ -66,7 +67,6 @@ double GetDifficulty(const CBlockIndex* blockindex, bool fPowOnly)
     }
 
     int nShift = (blockindex->nBits >> 24) & 0xff;
-
     double dDiff =
         (double)0x0000ffff / (double)(blockindex->nBits & 0x00ffffff);
 
@@ -82,6 +82,11 @@ double GetDifficulty(const CBlockIndex* blockindex, bool fPowOnly)
     }
 
     return dDiff;
+}
+
+double GetDifficulty(const CBlockIndex* blockindex, bool fPowOnly)
+{
+    return GetDifficulty(chainActive, blockindex, fPowOnly);
 }
 
 UniValue blockheaderToJSON(const CBlockIndex* blockindex)
@@ -333,6 +338,21 @@ UniValue waitforblockheight(const JSONRPCRequest& request)
     ret.push_back(Pair("hash", block.hash.GetHex()));
     ret.push_back(Pair("height", block.height));
     return ret;
+}
+
+UniValue syncwithvalidationinterfacequeue(const JSONRPCRequest& request)
+{
+    if (request.fHelp || request.params.size() > 0) {
+        throw std::runtime_error(
+            "syncwithvalidationinterfacequeue\n"
+            "\nWaits for the validation interface queue to catch up on everything that was there when we entered this function.\n"
+            "\nExamples:\n"
+            + HelpExampleCli("syncwithvalidationinterfacequeue","")
+            + HelpExampleRpc("syncwithvalidationinterfacequeue","")
+        );
+    }
+    SyncWithValidationInterfaceQueue();
+    return NullUniValue;
 }
 
 UniValue getdifficulty(const JSONRPCRequest& request)
@@ -1380,7 +1400,8 @@ UniValue mempoolInfoToJSON()
     ret.push_back(Pair("usage", (int64_t) mempool.DynamicMemoryUsage()));
     size_t maxmempool = gArgs.GetArg("-maxmempool", DEFAULT_MAX_MEMPOOL_SIZE) * 1000000;
     ret.push_back(Pair("maxmempool", (int64_t) maxmempool));
-    ret.push_back(Pair("mempoolminfee", ValueFromAmount(mempool.GetMinFee(maxmempool).GetFeePerK())));
+    ret.push_back(Pair("mempoolminfee", ValueFromAmount(std::max(mempool.GetMinFee(maxmempool), ::minRelayTxFee).GetFeePerK())));
+    ret.push_back(Pair("minrelaytxfee", ValueFromAmount(::minRelayTxFee.GetFeePerK())));
 
     return ret;
 }
@@ -1397,7 +1418,8 @@ UniValue getmempoolinfo(const JSONRPCRequest& request)
             "  \"bytes\": xxxxx,              (numeric) Sum of all virtual transaction sizes as defined in BIP 141. Differs from actual serialized size because witness data is discounted\n"
             "  \"usage\": xxxxx,              (numeric) Total memory usage for the mempool\n"
             "  \"maxmempool\": xxxxx,         (numeric) Maximum memory usage for the mempool\n"
-            "  \"mempoolminfee\": xxxxx       (numeric) Minimum fee rate in " + CURRENCY_UNIT + "/kB for tx to be accepted\n"
+            "  \"mempoolminfee\": xxxxx       (numeric) Minimum fee rate in " + CURRENCY_UNIT + "/kB for tx to be accepted. Is the maximum of minrelaytxfee and minimum mempool fee\n"
+            "  \"minrelaytxfee\": xxxxx       (numeric) Current minimum relay fee for transactions\n"
             "}\n"
             "\nExamples:\n"
             + HelpExampleCli("getmempoolinfo", "")
@@ -1649,6 +1671,7 @@ static const CRPCCommand commands[] =
     { "hidden",             "waitfornewblock",        &waitfornewblock,        {"timeout"} },
     { "hidden",             "waitforblock",           &waitforblock,           {"blockhash","timeout"} },
     { "hidden",             "waitforblockheight",     &waitforblockheight,     {"height","timeout"} },
+    { "hidden",             "syncwithvalidationinterfacequeue", &syncwithvalidationinterfacequeue, {} },
 };
 
 void RegisterBlockchainRPCCommands(CRPCTable &t)

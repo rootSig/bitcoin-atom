@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Bitcoin Core developers
+// Copyright (c) 2011-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -13,7 +13,6 @@
 #include <qt/optionsmodel.h>
 #include <qt/platformstyle.h>
 #include <qt/sendcoinsentry.h>
-#include <qt/walletmodel.h>
 #include <qt/transactionrecord.h>
 
 #include <base58.h>
@@ -26,16 +25,21 @@
 #include <wallet/fees.h>
 
 #include <qt/lastsendtransactionview.h>
+#include <qt/changefeedialog.h>
+#include <qt/forms/ui_changefeedialog.h>
+
+#include <qt/stockinfo.h>
+#include <qt/pricewidget.h>
 
 #include <QFontMetrics>
-#include <QMessageBox>
 #include <QScrollBar>
 #include <QSettings>
 #include <QTextDocument>
-#include <QTimer>
 #include <QSpacerItem>
 
-static const std::array<int, 9> confTargets = { {2, 4, 6, 12, 24, 48, 144, 504, 1008} };
+#define TARGETS_COUNT 9
+
+static const std::array<int, TARGETS_COUNT> confTargets = { {2, 4, 6, 12, 24, 48, 144, 504, 1008} };
 int getConfTargetForIndex(int index) {
     if (index+1 > static_cast<int>(confTargets.size())) {
         return confTargets.back();
@@ -57,6 +61,7 @@ int getIndexForConfTarget(int target) {
 SendCoinsDialog::SendCoinsDialog(const PlatformStyle *_platformStyle, QWidget *parent) :
     QDialog(parent),
     ui(new Ui::SendCoinsDialog),
+    changeFeeDialog(nullptr),
     clientModel(0),
     model(0),
     fNewRecipientAllowed(true),
@@ -65,10 +70,11 @@ SendCoinsDialog::SendCoinsDialog(const PlatformStyle *_platformStyle, QWidget *p
     view1(nullptr),
     view2(nullptr),
     view3(nullptr),
-    spacer1(nullptr),
-    spacer2(nullptr)
+    spacer1(nullptr)
 {
     ui->setupUi(this);
+
+    changeFeeDialog = new ChangeFeeDialog(this);
 
     if (!_platformStyle->getImagesOnButtons()) {
         //ui->addButton->setIcon(QIcon());
@@ -115,6 +121,8 @@ SendCoinsDialog::SendCoinsDialog(const PlatformStyle *_platformStyle, QWidget *p
     //ui->labelCoinControlLowOutput->addAction(clipboardLowOutputAction);
     //ui->labelCoinControlChange->addAction(clipboardChangeAction);
 
+    connect(ui->btnChangeFee, SIGNAL(clicked()), this, SLOT(onChangeClick()));
+
     // init transaction fee section
     QSettings settings;
     if (!settings.contains("fFeeSectionMinimized"))
@@ -129,24 +137,42 @@ SendCoinsDialog::SendCoinsDialog(const PlatformStyle *_platformStyle, QWidget *p
         settings.setValue("nTransactionFee", (qint64)DEFAULT_TRANSACTION_FEE);
     if (!settings.contains("fPayOnlyMinFee"))
         settings.setValue("fPayOnlyMinFee", false);
-    //ui->groupFee->setId(ui->radioSmartFee, 0);
-    //ui->groupFee->setId(ui->radioCustomFee, 1);
-    //ui->groupFee->button((int)std::max(0, std::min(1, settings.value("nFeeRadio").toInt())))->setChecked(true);
-    //ui->customFee->setValue(settings.value("nTransactionFee").toLongLong());
-    //ui->checkBoxMinimumFee->setChecked(settings.value("fPayOnlyMinFee").toBool());
+    if (!settings.contains("nCustomRadio")) {
+        settings.setValue("nCustomRadio", 0);
+    }
+    changeFeeDialog->ui->groupFee->setId(changeFeeDialog->ui->radioSmartFee, 0);
+    changeFeeDialog->ui->groupFee->setId(changeFeeDialog->ui->radioCustomFee, 1);
+    changeFeeDialog->ui->groupFee->button((int)std::max(0, std::min(1, settings.value("nFeeRadio").toInt())))->setChecked(true);
+    changeFeeDialog->ui->customFee->setValue(settings.value("nTransactionFee").toLongLong());
+
+    changeFeeDialog->ui->groupCustom->setId(changeFeeDialog->ui->checkBoxCustomFee, 0);
+    changeFeeDialog->ui->groupCustom->setId(changeFeeDialog->ui->checkBoxMinimumFee, 1);
+    changeFeeDialog->ui->groupCustom->button((int)std::max(0, std::min(1, settings.value("nCustomRadio").toInt())))->setChecked(true);
+
     minimizeFeeSection(settings.value("fFeeSectionMinimized").toBool());
 
     spacer1 = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
-    spacer2 = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
 
     view1 = new LastSendTransactionView(platformStyle, this);
     view2 = new LastSendTransactionView(platformStyle, this);
     view3 = new LastSendTransactionView(platformStyle, this);
     ui->lastTrLayout->addWidget(view1);
-    ui->lastTrLayout->addItem(spacer1);
     ui->lastTrLayout->addWidget(view2);
-    ui->lastTrLayout->addItem(spacer2);
     ui->lastTrLayout->addWidget(view3);
+    ui->lastTrLayout->addItem(spacer1);
+}
+
+void SendCoinsDialog::addPriceWidget(StockInfo* stockInfo)
+{
+    PriceWidget *priceWidget = new PriceWidget(stockInfo, this);
+    ui->priceLayout->addWidget(priceWidget);
+    QSpacerItem *spacer = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Expanding);
+    ui->priceLayout->addItem(spacer);
+}
+
+void SendCoinsDialog::onChangeClick()
+{
+    changeFeeDialog->exec();
 }
 
 void SendCoinsDialog::setClientModel(ClientModel *_clientModel)
@@ -189,23 +215,29 @@ void SendCoinsDialog::setModel(WalletModel *_model)
         //for (const int &n : confTargets) {
             //ui->confTargetSelector->addItem(tr("%1 (%2 blocks)").arg(GUIUtil::formatNiceTimeOffset(n*Params().GetConsensus().nPowTargetSpacing)).arg(n));
         //}
-        //connect(ui->confTargetSelector, SIGNAL(currentIndexChanged(int)), this, SLOT(updateSmartFeeLabel()));
-        //connect(ui->confTargetSelector, SIGNAL(currentIndexChanged(int)), this, SLOT(coinControlUpdateLabels()));
-        //connect(ui->groupFee, SIGNAL(buttonClicked(int)), this, SLOT(updateFeeSectionControls()));
-        //connect(ui->groupFee, SIGNAL(buttonClicked(int)), this, SLOT(coinControlUpdateLabels()));
-        //connect(ui->customFee, SIGNAL(valueChanged()), this, SLOT(coinControlUpdateLabels()));
-        //connect(ui->checkBoxMinimumFee, SIGNAL(stateChanged(int)), this, SLOT(setMinimumFee()));
-        //connect(ui->checkBoxMinimumFee, SIGNAL(stateChanged(int)), this, SLOT(updateFeeSectionControls()));
-        //connect(ui->checkBoxMinimumFee, SIGNAL(stateChanged(int)), this, SLOT(coinControlUpdateLabels()));
-        //connect(ui->optInRBF, SIGNAL(stateChanged(int)), this, SLOT(updateSmartFeeLabel()));
-        //connect(ui->optInRBF, SIGNAL(stateChanged(int)), this, SLOT(coinControlUpdateLabels()));
-        //ui->customFee->setSingleStep(GetRequiredFee(1000));
+        changeFeeDialog->ui->confTargetSelector->setMinimum(0);
+        changeFeeDialog->ui->confTargetSelector->setMaximum(TARGETS_COUNT - 1);
+        connect(changeFeeDialog->ui->confTargetSelector, SIGNAL(valueChanged(int)), this, SLOT(updateSmartFeeLabel()));
+        connect(changeFeeDialog->ui->confTargetSelector, SIGNAL(valueChanged(int)), this, SLOT(coinControlUpdateLabels()));
+
+        connect(changeFeeDialog->ui->groupFee, SIGNAL(buttonClicked(int)), this, SLOT(updateFeeSectionControls()));
+        connect(changeFeeDialog->ui->groupFee, SIGNAL(buttonClicked(int)), this, SLOT(coinControlUpdateLabels()));
+
+        connect(changeFeeDialog->ui->customFee, SIGNAL(valueChanged()), this, SLOT(coinControlUpdateLabels()));
+
+        connect(changeFeeDialog->ui->groupCustom, SIGNAL(buttonClicked(int)), this, SLOT(setMinimumFee()));
+        connect(changeFeeDialog->ui->groupCustom, SIGNAL(buttonClicked(int)), this, SLOT(updateFeeSectionControls()));
+        connect(changeFeeDialog->ui->groupCustom, SIGNAL(buttonClicked(int)), this, SLOT(coinControlUpdateLabels()));
+
+        connect(changeFeeDialog->ui->optInRBF, SIGNAL(stateChanged(int)), this, SLOT(updateSmartFeeLabel()));
+        connect(changeFeeDialog->ui->optInRBF, SIGNAL(stateChanged(int)), this, SLOT(coinControlUpdateLabels()));
+        changeFeeDialog->ui->customFee->setSingleStep(GetRequiredFee(1000));
         updateFeeSectionControls();
         updateMinFeeLabel();
         updateSmartFeeLabel();
 
         // set default rbf checkbox state
-        //ui->optInRBF->setCheckState(model->getDefaultWalletRbf() ? Qt::Checked : Qt::Unchecked);
+        changeFeeDialog->ui->optInRBF->setCheckState(Qt::Checked);
 
         // set the smartfee-sliders default value (wallets default conf.target or last stored value)
         QSettings settings;
@@ -216,10 +248,10 @@ void SendCoinsDialog::setModel(WalletModel *_model)
             settings.setValue("nConfTarget", nConfirmTarget);
             settings.remove("nSmartFeeSliderPosition");
         }
-        //if (settings.value("nConfTarget").toInt() == 0)
-        //    ui->confTargetSelector->setCurrentIndex(getIndexForConfTarget(model->getDefaultConfirmTarget()));
-        //else
-        //    ui->confTargetSelector->setCurrentIndex(getIndexForConfTarget(settings.value("nConfTarget").toInt()));
+        if (settings.value("nConfTarget").toInt() == 0)
+            changeFeeDialog->ui->confTargetSelector->setValue(getIndexForConfTarget(model->getDefaultConfirmTarget()));
+        else
+            changeFeeDialog->ui->confTargetSelector->setValue(getIndexForConfTarget(settings.value("nConfTarget").toInt()));
 
         updateLastTransactions();
         connect(_model, SIGNAL(onCashedTransactionUpdate()), this, SLOT(onCashedTransactionUpdate()));
@@ -274,11 +306,13 @@ SendCoinsDialog::~SendCoinsDialog()
 {
     QSettings settings;
     settings.setValue("fFeeSectionMinimized", fFeeMinimized);
-    //settings.setValue("nFeeRadio", ui->groupFee->checkedId());
-    //settings.setValue("nConfTarget", getConfTargetForIndex(ui->confTargetSelector->currentIndex()));
-    //settings.setValue("nTransactionFee", (qint64)ui->customFee->value());
-    //settings.setValue("fPayOnlyMinFee", ui->checkBoxMinimumFee->isChecked());
+    settings.setValue("nFeeRadio", changeFeeDialog->ui->groupFee->checkedId());
+    settings.setValue("nCustomRadio", changeFeeDialog->ui->groupCustom->checkedId());
+    settings.setValue("nConfTarget", getConfTargetForIndex(changeFeeDialog->ui->confTargetSelector->value()));
+    settings.setValue("nTransactionFee", (qint64)changeFeeDialog->ui->customFee->value());
+    //settings.setValue("fPayOnlyMinFee", changeFeeDialog->ui->checkBoxMinimumFee->isChecked());
 
+    delete changeFeeDialog;
     delete ui;
 }
 
@@ -327,11 +361,11 @@ void SendCoinsDialog::on_sendButton_clicked()
     // Always use a CCoinControl instance, use the CoinControlDialog instance if CoinControl has been enabled
     CCoinControl ctrl;
     if (model->getOptionsModel()->getCoinControlFeatures())
-        ctrl = *CoinControlDialog::coinControl;
+        ctrl = *CoinControlDialog::coinControl();
 
     updateCoinControlState(ctrl);
 
-    prepareStatus = model->prepareTransaction(currentTransaction, ctrl);
+    prepareStatus = model->prepareTransaction(currentTransaction, ctrl, true);
 
     // process prepareStatus and on error generate message shown to user
     processSendCoinsReturn(prepareStatus,
@@ -407,15 +441,17 @@ void SendCoinsDialog::on_sendButton_clicked()
     }
     questionString.append(tr("Total Amount %1")
         .arg(BitcoinUnits::formatHtmlWithUnit(model->getOptionsModel()->getDisplayUnit(), totalAmount)));
-    questionString.append(QString("<span style='font-size:10pt;font-weight:normal;'><br />(=%2)</span>")
+    questionString.append(QString("<span style='font-size:10pt;font-weight:normal;'><br />(=%1)</span>")
         .arg(alternativeUnits.join(" " + tr("or") + "<br />")));
 
-    //if (ui->optInRBF->isChecked())
-    //{
-    //    questionString.append("<hr /><span>");
-    //    questionString.append(tr("This transaction signals replaceability (optin-RBF)."));
-    //    questionString.append("</span>");
-    //}
+    questionString.append("<hr /><span>");
+    if (changeFeeDialog->ui->optInRBF->isChecked()) {
+        questionString.append(tr("You can increase the fee later (signals Replace-By-Fee, BIP-125)."));
+    } else {
+        questionString.append(tr("Not signalling Replace-By-Fee, BIP-125."));
+    }
+    questionString.append("</span>");
+
 
     SendConfirmationDialog confirmationDialog(tr("Confirm send coins"),
         questionString.arg(formatted.join("<br />")), SEND_CONFIRM_DELAY, this);
@@ -436,7 +472,7 @@ void SendCoinsDialog::on_sendButton_clicked()
     if (sendStatus.status == WalletModel::OK)
     {
         accept();
-        CoinControlDialog::coinControl->UnSelectAll();
+        CoinControlDialog::coinControl()->UnSelectAll();
         coinControlUpdateLabels();
     }
     fNewRecipientAllowed = true;
@@ -472,6 +508,7 @@ SendCoinsEntry *SendCoinsDialog::addEntry()
     connect(entry, SIGNAL(removeEntry(SendCoinsEntry*)), this, SLOT(removeEntry(SendCoinsEntry*)));
     connect(entry, SIGNAL(useAvailableBalance(SendCoinsEntry*)), this, SLOT(useAvailableBalance(SendCoinsEntry*)));
     connect(entry, SIGNAL(payAmountChanged()), this, SLOT(coinControlUpdateLabels()));
+    connect(entry, SIGNAL(addressChanged()), this, SLOT(coinControlUpdateLabels()));
     connect(entry, SIGNAL(subtractFeeFromAmountChanged()), this, SLOT(coinControlUpdateLabels()));
 
     // Focus the field, so that entry can start immediately
@@ -586,19 +623,20 @@ void SendCoinsDialog::setBalance(const CAmount& balance, const CAmount& unconfir
 
     if(model && model->getOptionsModel())
     {
-        QString balanceStr = BitcoinUnits::format(BitcoinUnits::Unit::BTC, balance);
-        int fontSize = GUIUtil::getFontPixelSize(balanceStr, 5, 28, 198, QString("Roboto Mono"), 700);
-        QString labelBalanceStyle = "background-color: transparent; font-family: \"Roboto Mono\"; font-weight: 700; font-size: ";
-        labelBalanceStyle = labelBalanceStyle + QString(std::to_string(fontSize).c_str()) + QString("px;");
-        ui->labelBalance->setStyleSheet(labelBalanceStyle);
-        ui->labelBalance->setText(balanceStr);
+        //QString balanceStr = BitcoinUnits::format(BitcoinUnits::Unit::BTC_rounded, balance);
+        //int labelBalanceMaxWidth = ui->frameTotal2->width() - ui->labelBalanceUnit->width();
+        //int fontSize = GUIUtil::getFontPixelSize(balanceStr, 5, 28, labelBalanceMaxWidth, QString("Roboto Mono"), 700);
+        //QString labelBalanceStyle = "background-color: transparent; font-family: \"Roboto Mono\"; font-weight: 700; font-size: ";
+        //labelBalanceStyle = labelBalanceStyle + QString(std::to_string(fontSize).c_str()) + QString("px;");
+        //ui->labelBalance->setStyleSheet(labelBalanceStyle);
+        //ui->labelBalance->setText(balanceStr);
     }
 }
 
 void SendCoinsDialog::updateDisplayUnit()
 {
     setBalance(model->getBalance(), 0, 0, 0, 0, 0);
-    //ui->customFee->setDisplayUnit(model->getOptionsModel()->getDisplayUnit());
+    changeFeeDialog->ui->customFee->setDisplayUnit(model->getOptionsModel()->getDisplayUnit());
     updateMinFeeLabel();
     updateSmartFeeLabel();
 }
@@ -679,7 +717,7 @@ void SendCoinsDialog::useAvailableBalance(SendCoinsEntry* entry)
     // Get CCoinControl instance if CoinControl is enabled or create a new one.
     CCoinControl coin_control;
     if (model->getOptionsModel()->getCoinControlFeatures()) {
-        coin_control = *CoinControlDialog::coinControl;
+        coin_control = *CoinControlDialog::coinControl();
     }
 
     // Calculate available amount to send.
@@ -701,20 +739,23 @@ void SendCoinsDialog::useAvailableBalance(SendCoinsEntry* entry)
 
 void SendCoinsDialog::setMinimumFee()
 {
-    //ui->customFee->setValue(GetRequiredFee(1000));
+    if (changeFeeDialog->ui->checkBoxMinimumFee->isChecked()) {
+        changeFeeDialog->ui->customFee->setValue(GetRequiredFee(1000));
+    }
 }
 
 void SendCoinsDialog::updateFeeSectionControls()
 {
-    //ui->confTargetSelector      ->setEnabled(ui->radioSmartFee->isChecked());
-    //ui->labelSmartFee           ->setEnabled(ui->radioSmartFee->isChecked());
-    //ui->labelSmartFee2          ->setEnabled(ui->radioSmartFee->isChecked());
+    changeFeeDialog->ui->confTargetSelector->setEnabled(changeFeeDialog->ui->radioSmartFee->isChecked());
+    changeFeeDialog->ui->labelSmartFee->setEnabled(changeFeeDialog->ui->radioSmartFee->isChecked());
+    changeFeeDialog->ui->labelSmartFee2->setEnabled(changeFeeDialog->ui->radioSmartFee->isChecked());
     //ui->labelSmartFee3          ->setEnabled(ui->radioSmartFee->isChecked());
     //ui->labelFeeEstimation      ->setEnabled(ui->radioSmartFee->isChecked());
-    //ui->checkBoxMinimumFee      ->setEnabled(ui->radioCustomFee->isChecked());
+    changeFeeDialog->ui->checkBoxMinimumFee->setEnabled(changeFeeDialog->ui->radioCustomFee->isChecked());
+    changeFeeDialog->ui->checkBoxCustomFee->setEnabled(changeFeeDialog->ui->radioCustomFee->isChecked());
     //ui->labelMinFeeWarning      ->setEnabled(ui->radioCustomFee->isChecked());
     //ui->labelCustomPerKilobyte  ->setEnabled(ui->radioCustomFee->isChecked() && !ui->checkBoxMinimumFee->isChecked());
-    //ui->customFee               ->setEnabled(ui->radioCustomFee->isChecked() && !ui->checkBoxMinimumFee->isChecked());
+    changeFeeDialog->ui->customFee->setEnabled(changeFeeDialog->ui->radioCustomFee->isChecked() && !changeFeeDialog->ui->checkBoxMinimumFee->isChecked());
 }
 
 void SendCoinsDialog::updateFeeMinimizedLabel()
@@ -722,11 +763,11 @@ void SendCoinsDialog::updateFeeMinimizedLabel()
     if(!model || !model->getOptionsModel())
         return;
 
-    //if (ui->radioSmartFee->isChecked())
+    if (changeFeeDialog->ui->radioSmartFee->isChecked()) {
     //    ui->labelFeeMinimized->setText(ui->labelSmartFee->text());
-    //else {
+    } else {
     //    ui->labelFeeMinimized->setText(BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), ui->customFee->value()) + "/kB");
-    //}
+    }
 }
 
 void SendCoinsDialog::updateMinFeeLabel()
@@ -739,18 +780,17 @@ void SendCoinsDialog::updateMinFeeLabel()
 
 void SendCoinsDialog::updateCoinControlState(CCoinControl& ctrl)
 {
-    //if (ui->radioCustomFee->isChecked()) {
-    //    ctrl.m_feerate = CFeeRate(ui->customFee->value());
-    //} else {
+    if (changeFeeDialog->ui->radioCustomFee->isChecked()) {
+        ctrl.m_feerate = CFeeRate(changeFeeDialog->ui->customFee->value());
+    } else {
         ctrl.m_feerate.reset();
-    //}
+    }
 
     // Avoid using global defaults when sending money from the GUI
     // Either custom fee will be used or if not selected, the confirmation target from dropdown box
-    //ctrl.m_confirm_target = getConfTargetForIndex(ui->confTargetSelector->currentIndex());
-    ctrl.m_confirm_target = getConfTargetForIndex(0);
+    ctrl.m_confirm_target = getConfTargetForIndex(changeFeeDialog->ui->confTargetSelector->value());
 
-    //ctrl.signalRbf = ui->optInRBF->isChecked();
+    ctrl.signalRbf = changeFeeDialog->ui->optInRBF->isChecked();
     ctrl.signalRbf = false;
 }
 
@@ -762,11 +802,15 @@ void SendCoinsDialog::updateSmartFeeLabel()
     updateCoinControlState(coin_control);
     coin_control.m_feerate.reset(); // Explicitly use only fee estimation rate for smart fee labels
     FeeCalculation feeCalc;
-    //CFeeRate feeRate = CFeeRate(GetMinimumFee(1000, coin_control, ::mempool, ::feeEstimator, &feeCalc));
+    CFeeRate feeRate = CFeeRate(GetMinimumFee(1000, coin_control, ::mempool, ::feeEstimator, &feeCalc));
 
-    //ui->labelSmartFee->setText(BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), feeRate.GetFeePerK()) + "/kB");
+    int n = getConfTargetForIndex(changeFeeDialog->ui->confTargetSelector->value());
+    changeFeeDialog->ui->labelConf->setText(tr("%1 / %2 blocks").arg(GUIUtil::formatNiceTimeOffset(n*Params().GetConsensus().nPowTargetSpacing)).arg(n));
+
+    changeFeeDialog->ui->labelSmartFee->setText(BitcoinUnits::format(model->getOptionsModel()->getDisplayUnit(), feeRate.GetFeePerK()));
 
     if (feeCalc.reason == FeeReason::FALLBACK) {
+        changeFeeDialog->ui->labelSmartFee2->setText(tr("[ Smart fee not initialized yet. This usualy takes a few blocks ... ]"));
         //ui->labelSmartFee2->show(); // (Smart fee not initialized yet. This usually takes a few blocks...)
         //ui->labelFeeEstimation->setText("");
         //ui->fallbackFeeWarningLabel->setVisible(true);
@@ -777,6 +821,7 @@ void SendCoinsDialog::updateSmartFeeLabel()
     }
     else
     {
+        changeFeeDialog->ui->labelSmartFee2->setText(tr("Estimated to begin confirmation within %n block(s).", "", feeCalc.returnedTarget));
         //ui->labelSmartFee2->hide();
         //ui->labelFeeEstimation->setText(tr("Estimated to begin confirmation within %n block(s).", "", feeCalc.returnedTarget));
         //ui->fallbackFeeWarningLabel->setVisible(false);
@@ -833,7 +878,7 @@ void SendCoinsDialog::coinControlFeatureChanged(bool checked)
     //ui->frameCoinControl->setVisible(checked);
 
     if (!checked && model) // coin control features disabled
-        CoinControlDialog::coinControl->SetNull();
+        CoinControlDialog::coinControl()->SetNull();
 
     coinControlUpdateLabels();
 }
@@ -852,7 +897,7 @@ void SendCoinsDialog::coinControlChangeChecked(int state)
 {
     if (state == Qt::Unchecked)
     {
-        CoinControlDialog::coinControl->destChange = CNoDestination();
+        CoinControlDialog::coinControl()->destChange = CNoDestination();
         //ui->labelCoinControlChangeLabel->clear();
     }
     //else
@@ -868,7 +913,7 @@ void SendCoinsDialog::coinControlChangeEdited(const QString& text)
     if (model && model->getAddressTableModel())
     {
         // Default to no change address until verified
-        CoinControlDialog::coinControl->destChange = CNoDestination();
+        CoinControlDialog::coinControl()->destChange = CNoDestination();
         //ui->labelCoinControlChangeLabel->setStyleSheet("QLabel{color:red;}");
 
         const CTxDestination dest = DecodeDestination(text.toStdString());
@@ -891,7 +936,7 @@ void SendCoinsDialog::coinControlChangeEdited(const QString& text)
                     QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
 
                 if(btnRetVal == QMessageBox::Yes)
-                    CoinControlDialog::coinControl->destChange = dest;
+                    CoinControlDialog::coinControl()->destChange = dest;
                 else
                 {
                     //ui->lineEditCoinControlChange->setText("");
@@ -910,19 +955,74 @@ void SendCoinsDialog::coinControlChangeEdited(const QString& text)
                 //elsecoinControlUpdateLabels()
                     //ui->labelCoinControlChangeLabel->setText(tr("(no label)"));
 
-                CoinControlDialog::coinControl->destChange = dest;
+                CoinControlDialog::coinControl()->destChange = dest;
             }
         }
     }
 }
 
+void SendCoinsDialog::updateCardInfo()
+{
+    QList<SendCoinsRecipient> recipients;
+
+    for(int i = 0; i < ui->entries->count(); ++i)
+    {
+        SendCoinsEntry *entry = qobject_cast<SendCoinsEntry*>(ui->entries->itemAt(i)->widget());
+        if(entry)
+        {
+            recipients.append(entry->getValue());
+        }
+    }
+
+    // prepare transaction for getting txFee earlier
+    WalletModelTransaction currentTransaction(recipients);
+    WalletModel::SendCoinsReturn prepareStatus;
+
+    // Always use a CCoinControl instance, use the CoinControlDialog instance if CoinControl has been enabled
+    CCoinControl ctrl;
+    if (model->getOptionsModel()->getCoinControlFeatures())
+        ctrl = *CoinControlDialog::coinControl();
+
+    updateCoinControlState(ctrl);
+
+    prepareStatus = model->prepareTransaction(currentTransaction, ctrl, false);
+
+    if(prepareStatus.status != WalletModel::OK) {
+        ui->labelCurFee->setStyleSheet("background-color: transparent; font-family: \"Roboto Mono\"; font-weight: 700; font-size: 13px;");
+        ui->labelCurAmount->setStyleSheet("background-color: transparent; font-family: \"Roboto Mono\"; font-weight: 700; font-size: 28px;");
+        ui->labelCurFee->setText("0.00000000");
+        ui->labelCurAmount->setText("0.00000000");
+        return;
+    }
+
+    CAmount txFee = currentTransaction.getTransactionFee();
+
+    QString feeStr = BitcoinUnits::format(BitcoinUnits::Unit::BTC, txFee);
+    int labelFeeMaxWidth = ui->frameFee->width() - ui->btnChangeFee->width() - 50;
+    int fontSize1 = GUIUtil::getFontPixelSize(feeStr, 5, 13, labelFeeMaxWidth, QString("Roboto Mono"), 700);
+    QString labelFeeStyle = "background-color: transparent; font-family: \"Roboto Mono\"; font-weight: 700; font-size: ";
+    labelFeeStyle = labelFeeStyle + QString(std::to_string(fontSize1).c_str()) + QString("px;");
+    ui->labelCurFee->setStyleSheet(labelFeeStyle);
+    ui->labelCurFee->setText(feeStr);
+
+    QString amountStr = BitcoinUnits::format(BitcoinUnits::Unit::BTC, currentTransaction.getTotalTransactionAmount() + txFee);
+    int labelAmountMaxWidth = ui->frameTotal2->width() - ui->labelBalanceUnit->width();
+    int fontSize2 = GUIUtil::getFontPixelSize(amountStr, 5, 28, labelAmountMaxWidth, QString("Roboto Mono"), 700);
+    QString labelAmountStyle = "background-color: transparent; font-family: \"Roboto Mono\"; font-weight: 700; font-size: ";
+    labelAmountStyle = labelAmountStyle + QString(std::to_string(fontSize2).c_str()) + QString("px;");
+    ui->labelCurAmount->setStyleSheet(labelAmountStyle);
+    ui->labelCurAmount->setText(amountStr);
+}
+
 // Coin Control: update labels
 void SendCoinsDialog::coinControlUpdateLabels()
-{
+{   
     if (!model || !model->getOptionsModel())
         return;
 
-    updateCoinControlState(*CoinControlDialog::coinControl);
+    updateCoinControlState(*CoinControlDialog::coinControl());
+
+    updateCardInfo();
 
     // set pay amounts
     CoinControlDialog::payAmounts.clear();
@@ -940,10 +1040,10 @@ void SendCoinsDialog::coinControlUpdateLabels()
         }
     }
 
-    if (CoinControlDialog::coinControl->HasSelected())
+    if (CoinControlDialog::coinControl()->HasSelected())
     {
         // actual coin control calculation
-        CoinControlDialog::updateLabels(model, this);
+        //CoinControlDialog::updateLabels(model, this);
 
         // show coin control stats
         //ui->labelCoinControlAutomaticallySelected->hide();

@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Bitcoin Core developers
+// Copyright (c) 2011-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -155,7 +155,7 @@ namespace GUIUtil
 
         public:
             TableViewLastColumnResizingFixer(QTableView* table, int lastColMinimumWidth, int allColsMinimumWidth, QObject *parent);
-            void stretchColumnWidth(int column);
+            void stretchColumnWidth(int column, int padding, bool useHeadersWidth = true);
 
         private:
             QTableView* tableView;
@@ -166,7 +166,7 @@ namespace GUIUtil
             int secondToLastColumnIndex;
 
             void adjustTableColumnsWidth();
-            int getAvailableWidthForColumn(int column);
+            int getAvailableWidthForColumn(int column, int padding, bool useHeadersWidth = true);
             int getColumnsWidth();
             void connectViewHeadersSignals();
             void disconnectViewHeadersSignals();
@@ -202,6 +202,8 @@ namespace GUIUtil
     QString formatNiceTimeOffset(qint64 secs);
 
     QString formatBytes(uint64_t bytes);
+
+    qreal calculateIdealFontSize(int width, const QString& text, QFont font, qreal minPointSize = 4, qreal startPointSize = 14);
 
     class ClickableLabel : public QLabel
     {

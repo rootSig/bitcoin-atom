@@ -1,4 +1,4 @@
-// Copyright (c) 2009-2016 The Bitcoin Core developers
+// Copyright (c) 2009-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -47,6 +47,7 @@ extern const std::string CLIENT_BUILD;
 
 std::string FormatFullVersion();
 std::string FormatSubVersion(const std::string& name, int nClientVersion, const std::vector<std::string>& comments);
+std::string FormatVersionString(const std::string& prefix, int nClientVersion);
 
 #endif // WINDRES_PREPROC
 

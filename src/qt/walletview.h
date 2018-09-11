@@ -1,4 +1,4 @@
-// Copyright (c) 2011-2016 The Bitcoin Core developers
+// Copyright (c) 2011-2017 The Bitcoin Core developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -20,6 +20,7 @@ class TransactionView;
 class WalletModel;
 class AddressBookPage;
 class MainMenuPanel;
+class StockInfo;
 
 QT_BEGIN_NAMESPACE
 class QModelIndex;
@@ -58,6 +59,8 @@ public:
     void setSyncProgress(double value, double max);
 
     void connectMainMenu(MainMenuPanel* _mainMenu);
+
+    void addPriceWidget(StockInfo* stockInfo);
 private:
     ClientModel *clientModel;
     WalletModel *walletModel;
